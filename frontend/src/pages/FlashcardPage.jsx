@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 import { motion, AnimatePresence } from 'framer-motion';
@@ -95,6 +95,8 @@ export default function FlashcardPage() {
   const [meta, setMeta] = useState(null);
   const [showHint, setShowHint] = useState(false);
   const [aiEnabled, setAiEnabled] = useState(false);
+  const startTime = useRef(Date.now()); // track session start for elapsed time display
+
 
   useEffect(() => {
     // Reset state whenever mode changes (normal <-> practice)
@@ -203,7 +205,8 @@ export default function FlashcardPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleFlip, handleRate, isFlipped, sessionComplete, loading, cards.length]);
 
-  const elapsedMinutes = Math.round((Date.now() - startTime) / 60000);
+  const elapsedMinutes = Math.round((Date.now() - startTime.current) / 60000);
+
 
   // Loading
   if (loading) {

@@ -91,13 +91,21 @@ export default function FlashcardPage() {
   const [sessionComplete, setSessionComplete] = useState(false);
   const [direction, setDirection] = useState(0);
   const [stats, setStats] = useState({ reviewed: 0, easy: 0, medium: 0, hard: 0 });
-  const [startTime] = useState(Date.now());
   const [activePlan, setActivePlan] = useState(null);
   const [meta, setMeta] = useState(null);
   const [showHint, setShowHint] = useState(false);
   const [aiEnabled, setAiEnabled] = useState(false);
 
   useEffect(() => {
+    // Reset state whenever mode changes (normal <-> practice)
+    setCards([]);
+    setCurrentIndex(0);
+    setIsFlipped(false);
+    setSessionComplete(false);
+    setDirection(0);
+    setStats({ reviewed: 0, easy: 0, medium: 0, hard: 0 });
+    setLoading(true);
+
     const fetchCards = async () => {
       try {
         // Check AI enabled in parallel
@@ -109,18 +117,17 @@ export default function FlashcardPage() {
         const active = plans.find(p => p.is_active === 1);
         setActivePlan(active || null);
 
-        // Fetch today's cards; practice mode bypasses daily quota
+        // Fetch cards; practice mode bypasses daily quota
         const modeParam = isPractice ? '&mode=practice' : '';
-        const params = active ? `?level_id=${active.level_id}${modeParam}` : (isPractice ? '?mode=practice' : '');
+        const params = active
+          ? `?level_id=${active.level_id}${modeParam}`
+          : isPractice ? '?mode=practice' : '';
         const res = await api.get(`/progress/today${params}`);
         const data = res.data;
 
-        // Backend returns { reviews: [...], new_words: [...], meta: {...} }
         const reviews = data.reviews || [];
         const newWords = data.new_words || [];
         setMeta(data.meta || null);
-
-        // Combine: reviews first (SRS due), then new words for today
         setCards([...reviews, ...newWords]);
       } catch (err) {
         console.error('Failed to fetch flashcards:', err);
@@ -130,7 +137,7 @@ export default function FlashcardPage() {
       }
     };
     fetchCards();
-  }, []);
+  }, [isPractice]); // re-fetch whenever mode changes
 
   const currentCard = cards[currentIndex];
   const progress = cards.length > 0 ? ((currentIndex) / cards.length) * 100 : 0;

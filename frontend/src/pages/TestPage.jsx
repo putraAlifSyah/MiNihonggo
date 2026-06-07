@@ -215,6 +215,8 @@ function StreamingAnalysis({ wrongWordIds, onClose }) {
 /* ══════════════════════════════════════════════════════════════════ */
 export default function TestPage() {
   const navigate = useNavigate();
+  // sessionKey forces a full re-init when user clicks "Latihan Lagi"
+  const [sessionKey, setSessionKey] = useState(0);
   const [phase, setPhase] = useState('loading'); // loading|quiz|complete|noPlan|empty
   const [aiEnabled, setAiEnabled] = useState(false);
   const [activePlan, setActivePlan] = useState(null);
@@ -232,6 +234,18 @@ export default function TestPage() {
 
   // ── Load data ─────────────────────────────────────────────────
   useEffect(() => {
+    // Reset everything for a clean session
+    setPhase('loading');
+    setQuestions([]);
+    setCurrent(0);
+    setScore({ correct: 0, total: 0 });
+    setWrongWordIds([]);
+    setShowAnalysis(false);
+    setQState('idle');
+    setSelectedChoice(null);
+    setAnswerResult(null);
+    setTextInput('');
+
     (async () => {
       try {
         // 1. Check AI
@@ -245,9 +259,16 @@ export default function TestPage() {
         if (!plan) { setPhase('noPlan'); return; }
         setActivePlan(plan);
 
-        // 3. Today's words
+        // 3. Today's words — try daily quota first, fall back to practice pool
+        let words = [];
         const todayRes = await api.get(`/progress/today?level_id=${plan.level_id}`);
-        const words = [...(todayRes.data.reviews || []), ...(todayRes.data.new_words || [])];
+        words = [...(todayRes.data.reviews || []), ...(todayRes.data.new_words || [])];
+
+        // If daily quota is 0, load from practice pool (all in-progress words)
+        if (words.length === 0) {
+          const practiceRes = await api.get(`/progress/today?level_id=${plan.level_id}&mode=practice`);
+          words = [...(practiceRes.data.reviews || []), ...(practiceRes.data.new_words || [])];
+        }
 
         if (words.length === 0) { setPhase('empty'); return; }
 
@@ -328,7 +349,7 @@ export default function TestPage() {
         setPhase('noPlan');
       }
     })();
-  }, []);
+  }, [sessionKey]); // sessionKey changes trigger full re-init
 
   const q = questions[current];
 
@@ -417,8 +438,18 @@ export default function TestPage() {
       <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="card text-center max-w-sm py-10 px-8">
         <motion.div animate={{ y: [0, -8, 0] }} transition={{ duration: 3, repeat: Infinity }} className="text-5xl mb-4">🎉</motion.div>
         <h2 className="text-xl font-bold jp-text mb-2">おめでとう！</h2>
-        <p className="text-text-muted text-sm mb-6">Tidak ada kata untuk ditest hari ini. Kerjakan flashcard dulu!</p>
-        <button onClick={() => navigate('/flashcard')} className="btn-primary">Buka Flashcard</button>
+        <p className="text-text-muted text-sm mb-6">Tidak ada kata baru hari ini.<br/>Mau latihan soal dari kata yang sudah kamu pelajari?</p>
+        <div className="space-y-3">
+          <button
+            onClick={() => { setPhase('loading'); setSessionKey(k => k + 1); }}
+            className="btn-primary w-full py-3 font-semibold"
+          >
+            🔁 Test Lagi (Kata yang Sudah Dipelajari)
+          </button>
+          <button onClick={() => navigate('/flashcard')} className="btn-secondary w-full py-2.5 text-sm">
+            Buka Flashcard
+          </button>
+        </div>
       </motion.div>
     </div>
   );
@@ -471,7 +502,9 @@ export default function TestPage() {
           {showAnalysis && <StreamingAnalysis wrongWordIds={wrongWordIds} />}
 
           <div className="space-y-2 mt-6">
-            <button onClick={() => window.location.reload()} className="btn-primary w-full py-3 flex items-center justify-center gap-2 text-sm font-semibold">
+            <button
+              onClick={() => { setPhase('loading'); setScore({ correct: 0, total: 0 }); setWrongWordIds([]); setShowAnalysis(false); setCurrent(0); setSessionKey(k => k + 1); }}
+              className="btn-primary w-full py-3 flex items-center justify-center gap-2 text-sm font-semibold">
               <RotateCcw size={14} />Latihan Lagi
             </button>
             <div className="flex gap-2">

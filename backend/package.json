@@ -1,0 +1,26 @@
+{
+  "name": "nihongo-vocab-backend",
+  "version": "1.0.0",
+  "description": "Backend API for Nihongo Vocab — Japanese vocabulary learning app",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^11.7.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.1",
+    "uuid": "^11.1.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.9"
+  },
+  "keywords": ["japanese", "vocabulary", "learning", "srs"],
+  "license": "MIT"
+}

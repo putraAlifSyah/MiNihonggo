@@ -18,6 +18,7 @@ import {
   Flame,
   Bot,
   SlidersHorizontal,
+  Library,
 } from 'lucide-react';
 
 import { useAuth } from '../../lib/auth';
@@ -26,6 +27,7 @@ const navItems = [
   { to: '/dashboard',  icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/flashcard',  icon: Layers,          label: 'Flashcard' },
   { to: '/test',       icon: ClipboardCheck,  label: 'Test' },
+  { to: '/vocabulary', icon: Library,         label: 'Kosakata Saya' },
   { to: '/kanji',      icon: PenTool,         label: 'Kanji Practice' },
   { to: '/analytics',  icon: BarChart3,       label: 'Analytics' },
   { to: '/leaderboard',icon: Trophy,          label: 'Leaderboard' },

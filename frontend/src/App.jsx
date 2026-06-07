@@ -14,7 +14,9 @@ import AnalyticsPage from './pages/AnalyticsPage';
 import LeaderboardPage from './pages/LeaderboardPage';
 import AISettingsPage from './pages/settings/AISettingsPage';
 import AITutorPage from './pages/AITutorPage';
+import VocabularyPage from './pages/VocabularyPage';
 import { PenTool } from 'lucide-react';
+
 
 
 export default function App() {
@@ -103,6 +105,15 @@ export default function App() {
           </ProtectedRoute>
         }
       />
+      <Route
+        path="/vocabulary"
+        element={
+          <ProtectedRoute>
+            <Layout><VocabularyPage /></Layout>
+          </ProtectedRoute>
+        }
+      />
+
 
       {/* Admin routes */}
       <Route

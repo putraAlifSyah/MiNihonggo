@@ -470,13 +470,18 @@ export default function TestPage() {
           )}
           {showAnalysis && <StreamingAnalysis wrongWordIds={wrongWordIds} />}
 
-          <div className="flex gap-3 mt-6">
-            <button onClick={() => window.location.reload()} className="btn-secondary flex-1 py-2.5 text-sm">
-              <RotateCcw size={14} className="inline mr-1.5" />Coba Lagi
+          <div className="space-y-2 mt-6">
+            <button onClick={() => window.location.reload()} className="btn-primary w-full py-3 flex items-center justify-center gap-2 text-sm font-semibold">
+              <RotateCcw size={14} />Latihan Lagi
             </button>
-            <button onClick={() => navigate('/dashboard')} className="btn-primary flex-1 py-2.5 text-sm">
-              Dashboard
-            </button>
+            <div className="flex gap-2">
+              <button onClick={() => navigate('/vocabulary')} className="btn-secondary flex-1 py-2.5 text-sm">
+                📚 Kosakata Saya
+              </button>
+              <button onClick={() => navigate('/dashboard')} className="btn-secondary flex-1 py-2.5 text-sm">
+                Dashboard
+              </button>
+            </div>
           </div>
         </div>
       </motion.div>

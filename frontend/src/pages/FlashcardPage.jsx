@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
+
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X,
@@ -80,6 +81,9 @@ function Confetti() {
 
 export default function FlashcardPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const isPractice = new URLSearchParams(location.search).get('mode') === 'practice';
+
   const [cards, setCards] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
@@ -105,8 +109,9 @@ export default function FlashcardPage() {
         const active = plans.find(p => p.is_active === 1);
         setActivePlan(active || null);
 
-        // Fetch today's cards, optionally filtered by level
-        const params = active ? `?level_id=${active.level_id}` : '';
+        // Fetch today's cards; practice mode bypasses daily quota
+        const modeParam = isPractice ? '&mode=practice' : '';
+        const params = active ? `?level_id=${active.level_id}${modeParam}` : (isPractice ? '?mode=practice' : '');
         const res = await api.get(`/progress/today${params}`);
         const data = res.data;
 
@@ -321,9 +326,28 @@ export default function FlashcardPage() {
               </div>
             )}
 
-            <button onClick={() => navigate('/dashboard')} className="btn-primary px-8">
-              Kembali ke Dashboard
-            </button>
+            <div className="space-y-3">
+              <button
+                onClick={() => navigate('/flashcard?mode=practice')}
+                className="btn-primary w-full py-3 flex items-center justify-center gap-2"
+              >
+                <span>🔁</span> Latihan Lagi (Semua Kata)
+              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => navigate('/vocabulary')}
+                  className="btn-secondary flex-1 py-2.5 text-sm"
+                >
+                  📚 Lihat Kosakata
+                </button>
+                <button
+                  onClick={() => navigate('/dashboard')}
+                  className="btn-secondary flex-1 py-2.5 text-sm"
+                >
+                  Dashboard
+                </button>
+              </div>
+            </div>
           </div>
         </motion.div>
       </>

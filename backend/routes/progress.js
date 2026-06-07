@@ -95,16 +95,17 @@ function awardBadgeIfEligible(userId, badgeKey, condition) {
 }
 
 // ────────────────────────────────────────────────────────────────
-// GET /api/progress/today?level_id=
+// GET /api/progress/today?level_id=&mode=practice
 // Returns the flashcard queue for today:
-//   1. Words with next_review_date <= today (SRS reviews due)
-//   2. New (unseen) words up to the daily quota
+//   Normal mode: SRS reviews due + new words up to daily quota
+//   Practice mode (?mode=practice): all in-progress words + more unseen (no quota cap)
 // ────────────────────────────────────────────────────────────────
 router.get('/today', authenticate, (req, res) => {
   try {
     const userId = req.user.id;
-    const { level_id } = req.query;
+    const { level_id, mode } = req.query;
     const today = todayStr();
+    const isPractice = mode === 'practice';
 
     // Determine words_per_day from the active study plan for this level
     let wordsPerDay = 10; // sensible default
@@ -129,10 +130,15 @@ router.get('/today', authenticate, (req, res) => {
       JOIN categories c ON w.category_id = c.id
       JOIN levels l ON c.level_id = l.id
       WHERE uwp.user_id = ?
-        AND uwp.next_review_date <= ?
         AND uwp.status != 'unseen'
     `;
-    const reviewParams = [userId, today];
+    const reviewParams = [userId];
+
+    // In practice mode: return ALL in-progress words, not just due ones
+    if (!isPractice) {
+      reviewSql += ' AND uwp.next_review_date <= ?';
+      reviewParams.push(today);
+    }
 
     if (level_id) {
       reviewSql += ' AND c.level_id = ?';
@@ -140,6 +146,7 @@ router.get('/today', authenticate, (req, res) => {
     }
 
     reviewSql += ' ORDER BY uwp.next_review_date ASC';
+    if (isPractice) reviewSql += ' LIMIT 30'; // cap practice at 30 for performance
     const reviews = db.prepare(reviewSql).all(...reviewParams);
 
     // 2. Count how many new words the user already studied today
@@ -149,7 +156,10 @@ router.get('/today', authenticate, (req, res) => {
         AND repetitions = 1
     `).get(userId, today + 'T00:00:00').cnt;
 
-    const newWordQuota = Math.max(0, wordsPerDay - studiedToday);
+    // In practice mode: always allow more new words (up to 20 extra)
+    const newWordQuota = isPractice
+      ? 20
+      : Math.max(0, wordsPerDay - studiedToday);
 
     // 3. Unseen words (no progress record yet)
     let unseenSql = `
@@ -184,6 +194,7 @@ router.get('/today', authenticate, (req, res) => {
         new_count: unseen.length,
         words_per_day: wordsPerDay,
         studied_today: studiedToday,
+        is_practice: isPractice,
       },
     });
   } catch (err) {
@@ -191,6 +202,102 @@ router.get('/today', authenticate, (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+// ────────────────────────────────────────────────────────────────
+// GET /api/progress/vocabulary?level_id=&status=all|mastered|reviewing|learning|unseen&search=&page=&limit=
+// Returns all words in the user's study level with their SRS status.
+// Words the user has never seen are returned as 'unseen'.
+// ────────────────────────────────────────────────────────────────
+router.get('/vocabulary', authenticate, (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { level_id, status = 'all', search = '', page = 1, limit = 40 } = req.query;
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+
+    // Status mapping: mastered = interval > 14d, reviewing = 3-14d, learning = < 3d
+    let sql = `
+      SELECT
+        w.id, w.japanese, w.hiragana, w.romaji, w.meaning,
+        w.word_type, w.example_sentence_jp, w.example_sentence_id,
+        c.name AS category_name, l.code AS level_code, l.id AS level_id,
+        COALESCE(uwp.status, 'unseen')        AS status,
+        COALESCE(uwp.interval_days, 0)        AS interval_days,
+        COALESCE(uwp.ease_factor, 2.5)        AS ease_factor,
+        COALESCE(uwp.repetitions, 0)          AS repetitions,
+        uwp.next_review_date,
+        uwp.last_reviewed_at,
+        CASE
+          WHEN uwp.id IS NULL                    THEN 'unseen'
+          WHEN uwp.interval_days > 14            THEN 'mastered'
+          WHEN uwp.interval_days >= 3            THEN 'reviewing'
+          ELSE                                        'learning'
+        END AS mastery
+      FROM words w
+      JOIN categories c ON w.category_id = c.id
+      JOIN levels l ON c.level_id = l.id
+      LEFT JOIN user_word_progress uwp ON uwp.word_id = w.id AND uwp.user_id = ?
+      WHERE 1=1
+    `;
+    const params = [userId];
+
+    if (level_id) {
+      sql += ' AND l.id = ?';
+      params.push(level_id);
+    }
+
+    if (search) {
+      sql += ' AND (w.japanese LIKE ? OR w.hiragana LIKE ? OR w.romaji LIKE ? OR w.meaning LIKE ?)';
+      const s = `%${search}%`;
+      params.push(s, s, s, s);
+    }
+
+    if (status !== 'all') {
+      if (status === 'mastered') {
+        sql += ' AND uwp.interval_days > 14';
+      } else if (status === 'reviewing') {
+        sql += ' AND uwp.interval_days >= 3 AND uwp.interval_days <= 14';
+      } else if (status === 'learning') {
+        sql += ' AND uwp.id IS NOT NULL AND uwp.interval_days < 3';
+      } else if (status === 'unseen') {
+        sql += ' AND uwp.id IS NULL';
+      }
+    }
+
+    // Count total for pagination
+    const countSql = `SELECT COUNT(*) AS total FROM (${sql})`;
+    const { total } = db.prepare(countSql).get(...params);
+
+    sql += ' ORDER BY mastery ASC, w.id ASC LIMIT ? OFFSET ?';
+    params.push(parseInt(limit), offset);
+
+    const words = db.prepare(sql).all(...params);
+
+    // Summary counts for header stats
+    const statsSql = `
+      SELECT
+        COUNT(*) AS total,
+        SUM(CASE WHEN uwp.interval_days > 14 THEN 1 ELSE 0 END)              AS mastered,
+        SUM(CASE WHEN uwp.interval_days >= 3 AND uwp.interval_days <= 14 THEN 1 ELSE 0 END) AS reviewing,
+        SUM(CASE WHEN uwp.id IS NOT NULL AND uwp.interval_days < 3 THEN 1 ELSE 0 END)       AS learning,
+        SUM(CASE WHEN uwp.id IS NULL THEN 1 ELSE 0 END)                       AS unseen
+      FROM words w
+      JOIN categories c ON w.category_id = c.id
+      JOIN levels l ON c.level_id = l.id
+      LEFT JOIN user_word_progress uwp ON uwp.word_id = w.id AND uwp.user_id = ?
+      WHERE 1=1
+      ${level_id ? 'AND l.id = ?' : ''}
+    `;
+    const statsParams = [userId];
+    if (level_id) statsParams.push(level_id);
+    const counts = db.prepare(statsSql).get(...statsParams);
+
+    res.json({ words, total, counts, page: parseInt(page), limit: parseInt(limit) });
+  } catch (err) {
+    console.error('[progress] vocabulary error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 
 // ────────────────────────────────────────────────────────────────
 // POST /api/progress/review

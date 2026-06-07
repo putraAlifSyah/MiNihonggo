@@ -50,9 +50,11 @@ router.put('/settings', authenticate, (req, res) => {
 
     const existing = db.prepare('SELECT id, api_key FROM ai_settings WHERE user_id = ?').get(req.user.id);
 
-    // Encrypt the API key only if a new one was provided
+    // Keep existing key if a placeholder/masked value was submitted
+    // (masked keys come back as '••••••••<last4>' from the GET endpoint)
     let encryptedKey = existing?.api_key || null;
-    if (api_key && api_key !== '••••••••') {
+    const isMasked = !api_key || api_key.trim() === '' || /^[•\u2022*]+/.test(api_key);
+    if (api_key && !isMasked) {
       encryptedKey = encrypt(api_key);
     }
 
@@ -84,9 +86,10 @@ router.post('/test-connection', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'base_url, api_key, model_name required' });
     }
 
-    // Decrypt if it's a masked key (use stored key instead)
+    // Decrypt if it's a masked key — use stored key instead
     let resolvedKey = api_key;
-    if (api_key === '••••••••' || !api_key.trim()) {
+    const isMasked = !api_key || api_key.trim() === '' || /^[•\u2022*]+/.test(api_key);
+    if (isMasked) {
       const stored = db.prepare('SELECT api_key FROM ai_settings WHERE user_id = ?').get(req.user.id);
       if (!stored?.api_key) return res.status(400).json({ error: 'No API key stored' });
       resolvedKey = decrypt(stored.api_key);

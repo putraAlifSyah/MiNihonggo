@@ -18,7 +18,7 @@ const STATUS_TABS = [
 const MASTERY_CONFIG = {
   mastered:  { label: 'Dikuasai',       color: 'text-success',   bg: 'bg-success/15  border-success/30',  dot: 'bg-success',  icon: '⭐' },
   reviewing: { label: 'Sedang Diulas',  color: 'text-purple',    bg: 'bg-purple/15   border-purple/30',   dot: 'bg-purple',   icon: '🔄' },
-  learning:  { label: 'Belajar',        color: 'text-warning',   bg: 'bg-warning/15  border-warning/30',  dot: 'bg-warning',  icon: '📖' },
+  learning:  { label: 'Sedang Belajar', color: 'text-warning',   bg: 'bg-warning/15  border-warning/30',  dot: 'bg-warning',  icon: '📖' },
   unseen:    { label: 'Belum Dilihat',  color: 'text-text-muted', bg: 'bg-white/5    border-white/10',    dot: 'bg-white/30', icon: '👁️' },
 };
 
@@ -226,6 +226,11 @@ export default function VocabularyPage() {
             transition={{ duration: 1, ease: 'easeOut' }} />
         </div>
         <p className="text-xs text-text-muted mt-2">{counts.total || 0} kata total dalam level yang dipilih</p>
+        <div className="flex flex-wrap gap-3 mt-2 text-xs text-text-muted/60">
+          <span>⭐ Dikuasai = 2× benar berurutan</span>
+          <span>🔄 Sedang Diulas = pernah benar</span>
+          <span>📖 Belajar = baru mulai</span>
+        </div>
       </motion.div>
 
       {/* Filters */}

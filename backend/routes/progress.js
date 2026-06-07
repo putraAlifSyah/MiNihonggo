@@ -228,8 +228,8 @@ router.get('/vocabulary', authenticate, (req, res) => {
         uwp.last_reviewed_at,
         CASE
           WHEN uwp.id IS NULL                    THEN 'unseen'
-          WHEN uwp.interval_days > 14            THEN 'mastered'
-          WHEN uwp.interval_days >= 3            THEN 'reviewing'
+          WHEN uwp.interval_days >= 4            THEN 'mastered'
+          WHEN uwp.interval_days >= 2            THEN 'reviewing'
           ELSE                                        'learning'
         END AS mastery
       FROM words w
@@ -253,11 +253,11 @@ router.get('/vocabulary', authenticate, (req, res) => {
 
     if (status !== 'all') {
       if (status === 'mastered') {
-        sql += ' AND uwp.interval_days > 14';
+        sql += ' AND uwp.interval_days >= 4';
       } else if (status === 'reviewing') {
-        sql += ' AND uwp.interval_days >= 3 AND uwp.interval_days <= 14';
+        sql += ' AND uwp.interval_days >= 2 AND uwp.interval_days < 4';
       } else if (status === 'learning') {
-        sql += ' AND uwp.id IS NOT NULL AND uwp.interval_days < 3';
+        sql += ' AND uwp.id IS NOT NULL AND uwp.interval_days < 2';
       } else if (status === 'unseen') {
         sql += ' AND uwp.id IS NULL';
       }
@@ -276,10 +276,10 @@ router.get('/vocabulary', authenticate, (req, res) => {
     const statsSql = `
       SELECT
         COUNT(*) AS total,
-        SUM(CASE WHEN uwp.interval_days > 14 THEN 1 ELSE 0 END)              AS mastered,
-        SUM(CASE WHEN uwp.interval_days >= 3 AND uwp.interval_days <= 14 THEN 1 ELSE 0 END) AS reviewing,
-        SUM(CASE WHEN uwp.id IS NOT NULL AND uwp.interval_days < 3 THEN 1 ELSE 0 END)       AS learning,
-        SUM(CASE WHEN uwp.id IS NULL THEN 1 ELSE 0 END)                       AS unseen
+        SUM(CASE WHEN uwp.interval_days >= 4 THEN 1 ELSE 0 END)                              AS mastered,
+        SUM(CASE WHEN uwp.interval_days >= 2 AND uwp.interval_days < 4 THEN 1 ELSE 0 END)    AS reviewing,
+        SUM(CASE WHEN uwp.id IS NOT NULL AND uwp.interval_days < 2 THEN 1 ELSE 0 END)         AS learning,
+        SUM(CASE WHEN uwp.id IS NULL THEN 1 ELSE 0 END)                                        AS unseen
       FROM words w
       JOIN categories c ON w.category_id = c.id
       JOIN levels l ON c.level_id = l.id

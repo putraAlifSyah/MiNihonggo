@@ -247,8 +247,10 @@ export default function FlashcardPage() {
             🎉
           </motion.div>
           <h2 className="text-2xl font-bold mb-2 jp-text">おめでとう！</h2>
-          <p className="text-text-muted mb-2">Tidak ada kartu untuk hari ini!</p>
-          <p className="text-xs text-text-muted mb-6">Kamu sudah menyelesaikan semua review hari ini. Datang lagi besok!</p>
+          <p className="text-text-muted mb-1">Target hari ini sudah selesai!</p>
+          <p className="text-xs text-text-muted mb-6">
+            Mau latihan lebih? Kamu bisa lanjut berapa kali pun dengan mode latihan bebas.
+          </p>
           {meta && (
             <div className="glass-subtle rounded-xl p-4 mb-6 text-sm text-left space-y-1">
               <p className="text-text-muted">📊 Review selesai: <span className="text-sakura font-semibold">{meta.review_count}</span></p>
@@ -256,9 +258,28 @@ export default function FlashcardPage() {
               <p className="text-text-muted">🎯 Target hari ini: <span className="text-text-primary font-semibold">{meta.words_per_day}</span> kata</p>
             </div>
           )}
-          <button onClick={() => navigate('/dashboard')} className="btn-primary">
-            Kembali ke Dashboard
-          </button>
+          <div className="space-y-3">
+            <button
+              onClick={() => navigate('/flashcard?mode=practice')}
+              className="btn-primary w-full py-3 flex items-center justify-center gap-2 font-semibold"
+            >
+              🔁 Latihan Lagi (Bebas Target)
+            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => navigate('/vocabulary')}
+                className="btn-secondary flex-1 py-2.5 text-sm"
+              >
+                📚 Kosakata Saya
+              </button>
+              <button
+                onClick={() => navigate('/dashboard')}
+                className="btn-secondary flex-1 py-2.5 text-sm"
+              >
+                Dashboard
+              </button>
+            </div>
+          </div>
         </div>
       </motion.div>
     );

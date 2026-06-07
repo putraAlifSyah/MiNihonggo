@@ -248,14 +248,15 @@ export default function TestPage() {
 
     (async () => {
       try {
-        // 1. Check AI
-        const aiRes = await api.get('/ai/settings');
-        const ai = !!aiRes.data.is_enabled;
-        setAiEnabled(ai);
+        // 1. Check AI — isolated so it never blocks the rest
+        try {
+          const aiRes = await api.get('/ai/settings');
+          setAiEnabled(!!aiRes.data.is_enabled);
+        } catch { /* AI disabled or not configured — continue */ }
 
         // 2. Active plan
         const plansRes = await api.get('/progress/study-plans');
-        const plan = (plansRes.data.plans || []).find(p => p.is_active === 1);
+        const plan = (plansRes.data.plans || []).find(p => p.is_active); // truthy check
         if (!plan) { setPhase('noPlan'); return; }
         setActivePlan(plan);
 

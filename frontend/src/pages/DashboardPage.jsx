@@ -11,6 +11,10 @@ import {
   ChevronRight,
   Target,
   Zap,
+  Lock,
+  CheckCircle2,
+  Calendar,
+  Trophy,
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { useAuth } from '../lib/auth';
@@ -98,6 +102,7 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [levels, setLevels] = useState([]);
+  const [activePlan, setActivePlan] = useState(null);
   const [todayStats, setTodayStats] = useState({ studied: 0, target: 10 });
   const [streak, setStreak] = useState({ current: 0, longest: 0 });
   const [weeklyData, setWeeklyData] = useState([]);
@@ -106,14 +111,20 @@ export default function DashboardPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [levelsRes, statsRes] = await Promise.allSettled([
+        const [levelsRes, statsRes, plansRes] = await Promise.allSettled([
           api.get('/levels'),
           api.get('/progress/stats'),
+          api.get('/progress/study-plans'),
         ]);
 
         if (levelsRes.status === 'fulfilled') {
-          const levelsData = levelsRes.value.data.levels || [];
-          setLevels(levelsData);
+          setLevels(levelsRes.value.data.levels || []);
+        }
+
+        if (plansRes.status === 'fulfilled') {
+          const plans = plansRes.value.data.plans || [];
+          const active = plans.find(p => p.is_active);
+          setActivePlan(active || null);
         }
 
         if (statsRes.status === 'fulfilled') {
@@ -187,40 +198,112 @@ export default function DashboardPage() {
           <BookOpen size={20} className="text-purple" />
           Level JLPT
         </h2>
-        <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 snap-x">
-          {(levels.length > 0 ? levels : []).map((level, i) => (
-            <motion.div
-              key={level.code || level.level_code || i}
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.97 }}
-              onClick={() => navigate(`/setup/${level.code || level.level_code}`)}
-              className={`
-                snap-start shrink-0 w-40 cursor-pointer card relative overflow-hidden group
-                ${(level.isActive || level.is_active)
-                  ? 'border-sakura/30 shadow-lg shadow-sakura/5'
-                  : 'opacity-60'
-                }
-              `}
-            >
-              {(level.isActive || level.is_active) && (
-                <div className="absolute inset-0 bg-gradient-to-br from-sakura/5 to-transparent pointer-events-none" />
-              )}
-              <div className="relative z-10">
-                <span className="text-2xl font-bold gradient-text">{level.code || level.level_code}</span>
-                <p className="text-xs text-text-muted mt-1">{level.wordCount || level.word_count || 0} kata</p>
-                {(level.isActive || level.is_active) && (
-                  <div className="flex items-center gap-1 mt-2">
-                    <Zap size={12} className="text-sakura" />
-                    <span className="text-[10px] text-sakura font-medium">Aktif</span>
-                  </div>
-                )}
+
+        {/* Active Plan Banner */}
+        {activePlan && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="glass-strong border border-sakura/25 rounded-2xl p-4 mb-4 flex items-center gap-4"
+          >
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-sakura to-purple flex items-center justify-center shrink-0">
+              <Trophy size={22} className="text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-bold text-sakura">{activePlan.level_code}</span>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-success/15 text-success border border-success/25">● Aktif</span>
               </div>
-              <ChevronRight
-                size={16}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted/40 group-hover:text-text-muted transition-colors"
-              />
-            </motion.div>
-          ))}
+              <p className="text-xs text-text-muted mt-0.5">
+                {activePlan.words_learned || 0} / {activePlan.total_words} kata dipelajari
+                &nbsp;·&nbsp;
+                <Calendar size={11} className="inline" /> Target: {new Date(activePlan.target_date).toLocaleDateString('id-ID',{day:'numeric',month:'short',year:'numeric'})}
+              </p>
+              {/* Mini progress bar */}
+              <div className="mt-2 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                <motion.div
+                  className="h-full bg-gradient-to-r from-sakura to-purple rounded-full"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${Math.min(((activePlan.words_learned || 0) / (activePlan.total_words || 1)) * 100, 100)}%` }}
+                  transition={{ duration: 1.2, ease: 'easeOut' }}
+                />
+              </div>
+            </div>
+            <button
+              onClick={() => navigate('/flashcard')}
+              className="btn-primary shrink-0 text-sm px-4 py-2"
+            >
+              Mulai
+            </button>
+          </motion.div>
+        )}
+
+        <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 snap-x">
+          {(levels.length > 0 ? levels : []).map((level, i) => {
+            const code = level.code || level.level_code;
+            const isActive = activePlan && activePlan.level_code === code;
+            // A level is locked if there's an active plan for a different (earlier) level
+            // Order: N5 < N4 < N3 < N2 < N1
+            const ORDER = ['N5','N4','N3','N2','N1'];
+            const activeIdx = activePlan ? ORDER.indexOf(activePlan.level_code) : -1;
+            const thisIdx = ORDER.indexOf(code);
+            const isLocked = activePlan && !isActive && thisIdx > activeIdx;
+            const isCompleted = activePlan && thisIdx < activeIdx;
+
+            return (
+              <motion.div
+                key={code || i}
+                whileHover={!isLocked ? { scale: 1.03 } : {}}
+                whileTap={!isLocked ? { scale: 0.97 } : {}}
+                onClick={() => {
+                  if (isLocked) return;
+                  navigate(`/setup/${code}`);
+                }}
+                className={`
+                  snap-start shrink-0 w-40 relative overflow-hidden rounded-2xl border p-4 transition-all
+                  ${isActive ? 'border-sakura/50 shadow-lg shadow-sakura/10 bg-sakura/5' : ''}
+                  ${isLocked ? 'opacity-40 cursor-not-allowed border-white/5' : 'cursor-pointer hover:shadow-md'}
+                  ${isCompleted ? 'border-success/30 bg-success/5' : ''}
+                  ${!isActive && !isLocked && !isCompleted ? 'border-white/8 glass' : 'glass'}
+                `}
+              >
+                {isActive && (
+                  <div className="absolute inset-0 bg-gradient-to-br from-sakura/8 to-purple/5 pointer-events-none" />
+                )}
+                <div className="relative z-10">
+                  <div className="flex items-start justify-between">
+                    <span className={`text-2xl font-bold ${
+                      isActive ? 'gradient-text' : isCompleted ? 'text-success' : 'text-text-primary'
+                    }`}>{code}</span>
+                    {isLocked && <Lock size={14} className="text-white/30 mt-1" />}
+                    {isCompleted && <CheckCircle2 size={14} className="text-success mt-1" />}
+                    {isActive && <Zap size={14} className="text-sakura mt-1" />}
+                  </div>
+                  <p className="text-xs text-text-muted mt-1">{level.word_count || 0} kata</p>
+                  {isActive && (
+                    <div className="mt-2">
+                      <span className="text-[10px] text-sakura font-semibold">📖 Sedang Belajar</span>
+                    </div>
+                  )}
+                  {isLocked && (
+                    <div className="mt-2">
+                      <span className="text-[10px] text-white/30">Selesaikan {activePlan?.level_code} dulu</span>
+                    </div>
+                  )}
+                  {isCompleted && (
+                    <div className="mt-2">
+                      <span className="text-[10px] text-success font-semibold">✓ Selesai</span>
+                    </div>
+                  )}
+                  {!isActive && !isLocked && !isCompleted && !activePlan && (
+                    <div className="mt-2">
+                      <span className="text-[10px] text-text-muted">Tap untuk mulai</span>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            );
+          })}
         </div>
       </motion.div>
 
